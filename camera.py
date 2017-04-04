@@ -43,7 +43,7 @@ class Camera:
         self.yaw = 0.0
         
     def computeProjection(self, mapPoint, Rwc, twc): 
-        """ CameraMatirx * (Rcw * X + tcw) """
+        """ CameraMatirx * (Rwc.T * (X - twc)) """
         feature = np.array(self.cameraMatrix * (Rwc.T * np.matrix(mapPoint - twc.T).T))
         feature = feature / feature[2,:]                 
         return feature
