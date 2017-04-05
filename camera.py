@@ -72,7 +72,9 @@ class Drawer:
         self.ax2.set_title('Camera View')
         self.camera = camera
         self.mapPoint = mapPoint
-        self.cameraPoseSHOW = self.ax1.scatter(0, 0, 0, c='b', marker='^', s=50)
+        self.v = np.array([[0],[1],[0]])
+        vc = np.dot(self.camera.Rwc, self.v)
+        self.cameraPoseSHOW = self.ax1.quiver(0, 0, 0, vc[0][0], vc[1][0], vc[2][0], color='g' ,length=0.5, normalize=True)
         self.ax1.scatter(mapPoint.data[:,0], mapPoint.data[:,1], mapPoint.data[:,2], c='g', marker='o', s=20)
         feature = self.camera.computeProjection(self.mapPoint.data, self.camera.Rwc, self.camera.twc)
         self.featureNewSHOW = self.ax2.scatter(feature[0,:], feature[1,:])
@@ -94,14 +96,15 @@ class Drawer:
             self.camera.Rwc = self.camera.computeRotationMatrix(self.camera.roll, self.camera.pitch, self.camera.yaw)
         if event.key == 'up':
             tcw = -self.camera.Rwc.T * self.camera.twc
-            tcw = tcw + np.matrix([[0],[0.2],[0]])
+            tcw = tcw + np.matrix([[0],[-0.2],[0]])
             self.camera.twc = -self.camera.Rwc * tcw
             self.camera.twc = self.camera.twc + np.matrix([[0],[0.02],[0]])
         if event.key == 'down':
             tcw = -self.camera.Rwc.T * self.camera.twc
-            tcw = tcw + np.matrix([[0],[-0.2],[0]])
+            tcw = tcw + np.matrix([[0],[0.2],[0]])
             self.camera.twc = -self.camera.Rwc * tcw
-        self.cameraPoseSHOW = self.ax1.scatter(self.camera.twc[0], self.camera.twc[1], self.camera.twc[2], c='b', marker='^', s=50)
+        vc = np.dot(self.camera.Rwc, self.v)
+        self.cameraPoseSHOW = self.ax1.quiver(self.camera.twc[0, 0], self.camera.twc[1, 0], self.camera.twc[2, 0], vc[0][0], vc[1][0], vc[2][0], color='g' ,length=0.5, normalize=True)
         feature = self.camera.computeProjection(self.mapPoint.data, self.camera.Rwc, self.camera.twc)
         self.featureNewSHOW = self.ax2.scatter(feature[0,:], feature[1,:], c='r')
         self.featureOldSHOW = self.ax2.scatter(featureOld[0,:], featureOld[1,:], c='b')
