@@ -55,6 +55,8 @@ class Optimizer:
 
     def jacobian_i(self, mapPoint):
         """ Define your Jacobian function"""
+        # u - (fx/z)*cos(yaw + dyaw)*(x - xo - dx) -(fx/z) sin(yaw + dyaw)*(y - yo - dy)) - cx
+        # v + (fy/z)*sin(yaw + dyaw)*(x - xo - dx) -(fy/z) cos(yaw + dyaw)*(y - yo - dy)) - cy
         x = mapPoint[0]
         y = mapPoint[1]
         z = mapPoint[2]
@@ -189,7 +191,7 @@ class Drawer:
         self.ax1.scatter(mapPoint.data[0,:], mapPoint.data[1,:], mapPoint.data[2,:], c='g', marker='o', s=20)
         feature = self.camera.computeProjection(self.mapPoint.data, self.camera.Rwc, self.camera.twc)
         self.featureNewSHOW = self.ax2.scatter(feature[0,:], feature[1,:], s=10)
-        self.featureOldSHOW = self.ax2.scatter(feature[0,:], feature[1,:], s=10)
+        #self.featureOldSHOW = self.ax2.scatter(feature[0,:], feature[1,:], s=10)
         fig.canvas.mpl_connect('key_press_event', self.press)
         self.twcOld = np.matrix([[0.],[0.],[0.]])
         self.yawOld = 0
@@ -200,39 +202,45 @@ class Drawer:
     def press(self, event):
         sys.stdout.flush()
         featureOld = self.camera.computeProjection(self.mapPoint.data, self.camera.Rwc, self.camera.twc)
-
+        cmd = np.matrix([[0.],[0.],[0.]])
         self.cameraPoseSHOW.remove()
         self.featureNewSHOW.remove()
-        self.featureOldSHOW.remove()
+        #self.featureOldSHOW.remove()
         if event.key == 'left':
-            self.camera.yaw = self.camera.yaw + 0.05
-            self.camera.Rwc = self.camera.computeRotationMatrix(0, 0, self.camera.yaw)
-            #self.camera.Rwc = self.camera.Rwc * self.camera.computeRotationMatrix(0, 0, 0.05) 
+            cmd = np.matrix([[0.],[0.],[0.05]])
         if event.key == 'right':
-            self.camera.yaw = self.camera.yaw - 0.05
-            self.camera.Rwc = self.camera.computeRotationMatrix(0, 0, self.camera.yaw)
-
-            #self.camera.Rwc = self.camera.Rwc * self.camera.computeRotationMatrix(0, 0, -0.05) 
+            cmd = np.matrix([[0.],[0.],[-0.05]])
         if event.key == 'up':
-            tcw = -self.camera.Rwc.T * self.camera.twc
-            tcw = tcw + np.matrix([[0],[-0.20],[0]])
-            self.camera.twc = -self.camera.Rwc * tcw
-            self.camera.twc = self.camera.twc + np.matrix([[0],[0.02],[0]])
+            dt = -self.camera.Rwc * np.matrix([[0],[-0.20],[0]])
+            cmd = np.matrix([[dt[0,0]],[dt[1,0]],[0.0]])
         if event.key == 'down':
-            tcw = -self.camera.Rwc.T * self.camera.twc
-            tcw = tcw + np.matrix([[0],[0.20],[0]])
-            self.camera.twc = -self.camera.Rwc * tcw
+            dt = -self.camera.Rwc* np.matrix([[0],[0.20],[0]])
+            cmd = np.matrix([[dt[0,0]],[dt[1,0]],[0.0]])
+
+        self.camera.yaw = self.camera.yaw + cmd[2,0]
+        self.camera.Rwc = self.camera.computeRotationMatrix(0, 0, self.camera.yaw)
+        self.camera.twc = self.camera.twc + np.matrix([[cmd[0,0]],[cmd[1,0]],[0]])
         vc = np.dot(self.camera.Rwc, self.v)
         self.cameraPoseSHOW = self.ax1.quiver(self.camera.twc[0, 0], self.camera.twc[1, 0], self.camera.twc[2, 0], vc[0][0], vc[1][0], vc[2][0], color='g' ,length=0.5, normalize=True)
         feature = self.camera.computeProjection(self.mapPoint.data, self.camera.Rwc, self.camera.twc)
         self.featureNewSHOW = self.ax2.scatter(feature[0,:], feature[1,:], c='r',s=10)
-        self.featureOldSHOW = self.ax2.scatter(featureOld[0,:], featureOld[1,:], c='b',s=10)
-        self.opt.set(feature, self.mapPoint.data, np.matrix([[0.],[0.],[0.]], dtype=np.float32), 320, 320, 320, 240, self.yawOld, self.twcOld)
+        #self.featureOldSHOW = self.ax2.scatter(featureOld[0,:], featureOld[1,:], c='b',s=10)
+        #np.matrix([[0.],[0.],[0.]])
+        self.opt.set(feature, self.mapPoint.data, cmd, 320, 320, 320, 240, self.yawOld, self.twcOld)
         newArg = self.opt.solve()
+        print newArg
         self.yawOld = self.yawOld + newArg[2,0]
         self.twcOld[0,0] = self.twcOld[0,0] + newArg[0,0]
         self.twcOld[1,0] = self.twcOld[1,0] + newArg[1,0]
-        self.ax3.scatter(self.twcOld[0,0], self.twcOld[1,0],  c='r', s=10)
+        slam_path = self.ax3.scatter(self.twcOld[0,0], self.twcOld[1,0],  c='r', s=10)
+        real_path = self.ax3.scatter(self.camera.twc[0,0], self.camera.twc[1,0],  c='b', s=10)
+        #self.ax3.legend()
+        plt.legend((slam_path, real_path),
+           ('slam_path', 'real_path'),
+           scatterpoints=1,
+           loc='lower left',
+           ncol=3,
+           fontsize=8)
         #self.ax3.scatter(self.twcOld, self.twcOld,  c='r', s=10)
 
         plt.draw()
