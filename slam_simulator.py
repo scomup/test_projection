@@ -90,10 +90,13 @@ class Optimizer:
 
         
     def solve(self):
-        last_error = 0        
+        last_error = 0
+
         for j in range(1):
             if last_error == 0:
                  last_error = self.getTotalError()
+                 print '---------------'
+                 print 'in error:', last_error
             H = np.matrix(np.zeros((self.arg.size, self.arg.size)))
             B = np.matrix(np.zeros((self.arg.size, 1)))
             for i in range(self.mapPoint.shape[1]):
@@ -104,7 +107,7 @@ class Optimizer:
             darg = np.linalg.solve(H, -B)
             self.arg = self.arg + darg
             tot_error = self.getTotalError()
-            print tot_error
+            print 'out error:', tot_error
             if last_error -  tot_error < 0.00001:
                 break
             last_error =  tot_error
@@ -181,6 +184,7 @@ class Drawer:
         self.ax3.set_xlabel('x')
         self.ax3.set_ylabel('y')
         self.ax3.set_title('SLAM')
+        self.odom  = np.matrix([[0.],[0.],[0.]])
 
         self.camera = camera
         self.mapPoint = mapPoint
@@ -223,20 +227,24 @@ class Drawer:
         vc = np.dot(self.camera.Rwc, self.v)
         self.cameraPoseSHOW = self.ax1.quiver(self.camera.twc[0, 0], self.camera.twc[1, 0], self.camera.twc[2, 0], vc[0][0], vc[1][0], vc[2][0], color='g' ,length=0.5, normalize=True)
         feature = self.camera.computeProjection(self.mapPoint.data, self.camera.Rwc, self.camera.twc)
-        self.featureNewSHOW = self.ax2.scatter(feature[0,:], feature[1,:], c='r',s=10)
+        feature_noise = feature + np.random.normal(0, 3, self.mapPoint.data.size).reshape(feature.shape)
+        self.featureNewSHOW = self.ax2.scatter(feature_noise[0,:], feature_noise[1,:], c='r',s=10)
         #self.featureOldSHOW = self.ax2.scatter(featureOld[0,:], featureOld[1,:], c='b',s=10)
         #np.matrix([[0.],[0.],[0.]])
-        self.opt.set(feature, self.mapPoint.data, cmd, 320, 320, 320, 240, self.yawOld, self.twcOld)
+        cmd_noise = cmd + np.random.normal(0, 0.03, cmd.size).reshape(cmd.shape)
+        self.odom = self.odom + cmd_noise
+        self.opt.set(feature_noise, self.mapPoint.data, cmd_noise, 320, 320, 320, 240, self.yawOld, self.twcOld)
         newArg = self.opt.solve()
-        print newArg
+        #print newArg
         self.yawOld = self.yawOld + newArg[2,0]
         self.twcOld[0,0] = self.twcOld[0,0] + newArg[0,0]
         self.twcOld[1,0] = self.twcOld[1,0] + newArg[1,0]
-        slam_path = self.ax3.scatter(self.twcOld[0,0], self.twcOld[1,0],  c='r', s=10)
-        real_path = self.ax3.scatter(self.camera.twc[0,0], self.camera.twc[1,0],  c='b', s=10)
+        odom_path = self.ax3.scatter(self.odom[0,0], self.odom[1,0],  c='g', s=1)
+        slam_path = self.ax3.scatter(self.twcOld[0,0], self.twcOld[1,0],  c='r', s=1)
+        real_path = self.ax3.scatter(self.camera.twc[0,0], self.camera.twc[1,0],  c='b', s=1)
         #self.ax3.legend()
-        plt.legend((slam_path, real_path),
-           ('slam_path', 'real_path'),
+        plt.legend((odom_path, slam_path, real_path),
+           ('odom_path','slam_path', 'real_path'),
            scatterpoints=1,
            loc='lower left',
            ncol=3,
