@@ -8,8 +8,6 @@ from math import *
 #from sys.float_info import epsilon
 epsilon = sys.float_info.epsilon
 
-
-
 class Optimizer:
     def __init__(self):
         print ' Must define error and Jacobian'
@@ -25,12 +23,8 @@ class Optimizer:
         self.yaw = yaw #camera yaw
         self.twc = twc #camera pose
         self.init_arg = arg #x, y, theta 
-        self.k = 1.#SLAM結果はProjection Errorを重視
+        self.k = 100.#SLAM結果はProjection Errorを重視
         #self.k = 10000.#SLAM結果はOdometry Errorを重視
-
-
-        
-
 
     def e(self,Y_i,mapPoint):
         """ This function defined the error
@@ -55,8 +49,8 @@ class Optimizer:
         init_dx = self.init_arg[0,0]
         init_dy = self.init_arg[1,0]
 
-        return np.matrix([[u - (fx/z)*(cos(yaw + dyaw)*(x - xo - dx) + sin(yaw + dyaw)*(y - yo - dy)) - cx], # Projection error 
-                          [v - (fy/z)*(-sin(yaw + dyaw)*(x - xo - dx) + cos(yaw + dyaw)*(y - yo - dy)) - cy],# Projection error 
+        return np.matrix([[u - (fx/z)*(cos(yaw - dyaw)*(x - xo) + sin(yaw - dyaw)*(y - yo) + dx) - cx], # Projection error 
+                          [v - (fy/z)*(-sin(yaw - dyaw)*(x - xo) + cos(yaw - dyaw)*(y - yo) + dy) - cy],# Projection error 
                           [self.k*(init_dx - dx)],# odometry error 
                           [self.k*(init_dy - dy)],# odometry error 
                           [self.k*(init_dyaw - dyaw)]# odometry error 
@@ -82,12 +76,12 @@ class Optimizer:
         dx = self.arg[0,0]
         dy = self.arg[1,0]
         J = np.matrix(np.zeros((5, 3)))
-        J[0,0] = (fx/z)*cos(yaw + dyaw)
-        J[0,1] = (fx/z)*sin(yaw + dyaw)
-        J[0,2] = (fx/z)*sin(yaw + dyaw)*(x - xo - dx) - (fx/z)*cos(yaw + dyaw)*(y - yo - dy)
-        J[1,0] = -(fy/z)*sin(yaw + dyaw)
-        J[1,1] = (fy/z)*cos(yaw + dyaw)
-        J[1,2] = (fy/z)*cos(yaw + dyaw)*(x - xo - dx) + (fy/z)*sin(yaw + dyaw)*(y - yo - dy)
+        J[0,0] = -(fx/z)
+        J[0,1] = 0
+        J[0,2] = -(fx/z)*sin(yaw - dyaw)*(x - xo) + (fx/z)*cos(yaw - dyaw)*(y - yo)
+        J[1,0] = 0
+        J[1,1] = -(fy/z)
+        J[1,2] = -(fy/z)*cos(yaw - dyaw)*(x - xo) - (fy/z)*sin(yaw - dyaw)*(y - yo)
         J[2,0] = -1*self.k
         J[3,1] = -1*self.k
         J[4,2] = -1*self.k
@@ -184,8 +178,6 @@ class Camera:
           [cos(y)*sin(z) + sin(x)*sin(y)*cos(z), cos(x)*cos(z),  sin(y)*sin(z) - sin(x)*cos(y)*cos(z)],
           [-cos(x)*sin(y),                        sin(x),        cos(x)*cos(y)]],dtype=np.float32)
 
-
-
 class Drawer:
     def __init__(self, camera, mapPoint,opt): 
         fig = plt.figure()
@@ -231,51 +223,50 @@ class Drawer:
         self.cameraPoseSHOW.remove()
         self.featureNewSHOW.remove()
         if event.key == 'left':
-            cmd = np.matrix([[0.],[0.],[0.05]])
-        if event.key == 'right':
             cmd = np.matrix([[0.],[0.],[-0.05]])
+        if event.key == 'right':
+            cmd = np.matrix([[0.],[0.],[+0.05]])
         if event.key == 'up':
-            dt = -self.camera.Rwc * np.matrix([[0],[-0.20],[0]])
-            cmd = np.matrix([[dt[0,0]],[dt[1,0]],[0.0]])
+            cmd = np.matrix([[0],[-0.20],[0]])
         if event.key == 'down':
-            dt = -self.camera.Rwc* np.matrix([[0],[0.20],[0]])
-            cmd = np.matrix([[dt[0,0]],[dt[1,0]],[0.0]])
+            cmd =np.matrix([[0],[0.20],[0]])
 
-        self.camera.yaw = self.camera.yaw + cmd[2,0]
+        self.camera.yaw = self.camera.yaw - cmd[2,0]
         self.camera.Rwc = self.camera.computeRotationMatrix(0, 0, self.camera.yaw)
-        self.camera.twc = self.camera.twc + np.matrix([[cmd[0,0]],[cmd[1,0]],[0]])
+        self.camera.twc = self.camera.twc - self.camera.Rwc * np.matrix([[cmd[0,0]],[cmd[1,0]],[0]])
         vc = np.dot(self.camera.Rwc, self.v)
         self.cameraPoseSHOW = self.ax1.quiver(self.camera.twc[0, 0], self.camera.twc[1, 0], self.camera.twc[2, 0], vc[0][0], vc[1][0], vc[2][0], color='g' ,length=0.5, normalize=True)
         feature = self.camera.computeProjection(self.mapPoint.data, self.camera.Rwc, self.camera.twc)
         #Add noise for image
-        feature_noise = feature + np.random.normal(0, 3, self.mapPoint.data.size).reshape(feature.shape)
+        feature_noise = feature + np.random.normal(0, 10, self.mapPoint.data.size).reshape(feature.shape)
         self.featureNewSHOW = self.ax2.scatter(feature_noise[0,:], feature_noise[1,:], c='r',s=10)
         #Add noise for odom
-        cmd_noise = cmd + np.random.normal(0, 0.03, cmd.size).reshape(cmd.shape)
-        self.odom_noise = self.odom_noise + cmd_noise
+        #cmd_noise = cmd + np.random.normal(0, 0.03, cmd.size).reshape(cmd.shape)
+        cmd_noise = cmd + np.matrix([[0.0],[0.0],[(np.random.rand()-0.5)/20]])
+        newYaw = self.odom_noise[2,0] - cmd_noise[2,0]
+        Rwc = self.camera.computeRotationMatrix(0, 0, newYaw)
+        self.odom_noise = self.odom_noise - Rwc * np.matrix([[cmd_noise[0,0]],[cmd_noise[1,0]],[0]])
+        self.odom_noise[2,0] = newYaw
 
         #Add noise for odom
         self.opt.set(feature_noise, self.mapPoint.data, cmd_noise, 320, 320, 320, 240, self.slamPose[2,0], self.slamPose)
-        newArg = self.opt.solve()
-        #print newArg
-        self.slamPose[2,0] = self.slamPose[2,0] + newArg[2,0]
-        self.slamPose[0,0] = self.slamPose[0,0] + newArg[0,0]
-        self.slamPose[1,0] = self.slamPose[1,0] + newArg[1,0]
+        delta = self.opt.solve()
+        newYaw = self.slamPose[2,0] - delta[2,0]
+        Rwc = self.camera.computeRotationMatrix(0, 0, newYaw)
+        self.slamPose = self.slamPose - Rwc * np.matrix([[delta[0,0]],[delta[1,0]],[0]])
+        self.slamPose[2,0] = newYaw
+
         odom_path = self.ax3.scatter(self.odom_noise[0,0], self.odom_noise[1,0],  c='g', s=1)
         slam_path = self.ax3.scatter(self.slamPose[0,0], self.slamPose[1,0],  c='r', s=1)
         real_path = self.ax3.scatter(self.camera.twc[0,0], self.camera.twc[1,0],  c='b', s=1)
-        #self.ax3.legend()
+
         plt.legend((odom_path, slam_path, real_path),
            ('odom_path','slam_path', 'real_path'),
            scatterpoints=1,
            loc='lower left',
            ncol=3,
            fontsize=8)
-        #self.ax3.scatter(self.twcOld, self.twcOld,  c='r', s=10)
-
         plt.draw()
-        
-
 
 mapPoint = MapPoint()
 camera = Camera()
