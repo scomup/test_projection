@@ -12,7 +12,7 @@ class Optimizer:
     def __init__(self):
         print ' Must define error and Jacobian'
         
-    def set(self, Y, mapPoint, arg, fx, fy, cx, cy, yaw, twc):
+    def set(self, Y, mapPoint, arg, init_arg, fx, fy, cx, cy, yaw, twc):
         self.mapPoint = mapPoint
         self.Y = Y #image
         self.arg = arg #x, y, theta (optimization object)
@@ -22,7 +22,7 @@ class Optimizer:
         self.cy = cy #camera param
         self.yaw = yaw #camera yaw
         self.twc = twc #camera pose
-        self.init_arg = arg #x, y, theta 
+        self.init_arg = init_arg #x, y, theta 
         self.k = 100.#SLAM結果はProjection Errorを重視
         #self.k = 10000.#SLAM結果はOdometry Errorを重視
 
@@ -238,7 +238,7 @@ class Drawer:
         self.cameraPoseSHOW = self.ax1.quiver(self.camera.twc[0, 0], self.camera.twc[1, 0], self.camera.twc[2, 0], vc[0][0], vc[1][0], vc[2][0], color='g' ,length=0.5, normalize=True)
         feature = self.camera.computeProjection(self.mapPoint.data, self.camera.Rwc, self.camera.twc)
         #Add noise for image
-        feature_noise = feature + np.random.normal(0, 10, self.mapPoint.data.size).reshape(feature.shape)
+        feature_noise = feature + np.random.normal(0, 30, self.mapPoint.data.size).reshape(feature.shape)
         self.featureNewSHOW = self.ax2.scatter(feature_noise[0,:], feature_noise[1,:], c='r',s=10)
         #Add noise for odom
         #cmd_noise = cmd + np.random.normal(0, 0.03, cmd.size).reshape(cmd.shape)
@@ -249,7 +249,7 @@ class Drawer:
         self.odom_noise[2,0] = newYaw
 
         #Add noise for odom
-        self.opt.set(feature_noise, self.mapPoint.data, cmd_noise, 320, 320, 320, 240, self.slamPose[2,0], self.slamPose)
+        self.opt.set(feature_noise, self.mapPoint.data, np.matrix([[0.],[0.],[0.]]), cmd_noise, 320, 320, 320, 240, self.slamPose[2,0], self.slamPose)
         delta = self.opt.solve()
         newYaw = self.slamPose[2,0] - delta[2,0]
         Rwc = self.camera.computeRotationMatrix(0, 0, newYaw)

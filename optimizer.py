@@ -20,7 +20,7 @@ class Optimizer:
 
     def jacobian_i(self, x):
         """ Define your Jacobian function"""
-        return np.matrix([x**3, x**2, x, 1])
+        return np.matrix([-x**3, -x**2, -x, -1])
 
     def solve(self):
         last_error = 10000000
@@ -37,20 +37,32 @@ class Optimizer:
                 jacobian_i = self.jacobian_i(self.x[i]) 
                 H = H + jacobian_i.T * jacobian_i
                 B = B + jacobian_i.T * np.matrix([e[0,i]])
-            darg = np.linalg.solve(H, B)
+            darg = np.linalg.solve(H, -B)
             self.arg = self.arg + darg
         return self.arg
 
-x = np.arange(0,6,0.1)
-arg = np.array([[1],[1],[1], [1]])
-y = 1*x**3 - 2*x**2 - 4*x + 5
+x = np.arange(-3,3,0.1)
+realVal = np.array([[3.],[-2.],[-4.], [5.]])
+predVal = np.array([[1.],[1.],[1.], [1.]])
+y = realVal[0,0]*x**3 + realVal[1,0]*x**2 + realVal[2,0]*x + realVal[3,0]
 y_noise = y + np.random.rand(x.size) * 10 - 5
-opt = Optimizer(x, y_noise, arg)
-arg = opt.solve()
-#y_predict = arg[0,0]*x**2 + arg[1,0]*x + arg[2,0]
-y_predict = arg[0,0]*x**3 + arg[1,0]*x**2 + arg[2,0]*x + arg[3,0]
-plt.plot(x, y_predict)
-plt.plot(x, y_noise)
-print arg
+opt = Optimizer(x, y_noise, realVal)
+predVal = opt.solve()
+y_predict = predVal[0,0]*x**3 + predVal[1,0]*x**2 + predVal[2,0]*x + predVal[3,0]
+predict, =       plt.plot(x, y_predict)
+measurement, =   plt.plot(x, y_noise)
+real, =          plt.plot(x, y)
+plt.legend((predict, measurement, real),
+   ('predict','measurement', 'real'),
+   scatterpoints=1,
+   loc='lower left',
+   ncol=3,
+   fontsize=11)
+print 'real value:'
+print realVal
+print 'predicted value:'
+print predVal
+print 'error:'
+print np.linalg.norm(realVal - predVal)
 plt.show()
 
